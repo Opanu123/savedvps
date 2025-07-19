@@ -1,63 +1,54 @@
-name: Auto VPS with MEGA + SSH (Fixed)
+name: Auto VPS Creator with MEGA Backup (Fixed)
 
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 */6 * * *"
-  push:
-    branches: [main]
+on: workflow_dispatch: schedule: - cron: '0 */6 * * *'  # Every 6 hours push: branches: [main]
 
-jobs:
-  autovps:
-    runs-on: ubuntu-latest
+jobs: create-vps: runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+steps:
+  - name: Checkout Repository
+    uses: actions/checkout@v3
 
-      - name: Setup VPS Tools
-        run: |
-          sudo apt update
-          sudo apt install -y tmate zip
+  - name: Install Required Packages
+    run: |
+      sudo apt update
+      sudo apt install -y tmate zip
 
-      - name: Start VPS (tmate) and Save SSH
-        run: |
-          tmate -S /tmp/tmate.sock new-session -d
-          sleep 5
-          tmate -S /tmp/tmate.sock wait tmate-ready
-          tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
-          cat ssh.txt
+  - name: Start tmate Session & Save SSH to File
+    run: |
+      tmate -S /tmp/tmate.sock new-session -d
+      sleep 5
+      tmate -S /tmp/tmate.sock wait tmate-ready
+      tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
+      cat ssh.txt
 
-      - name: Upload ssh.txt
-        uses: actions/upload-artifact@v4
-        with:
-          name: SSH
-          path: ssh.txt
+  - name: Upload ssh.txt Artifact
+    uses: actions/upload-artifact@v4
+    with:
+      name: ssh
+      path: ssh.txt
 
-      - name: Create Minecraft World and Zip
-        run: |
-          mkdir -p minecraft/world
-          echo "Auto VPS World Data" > minecraft/world/info.txt
-          mkdir -p .backup
-          zip -r .backup/world.zip minecraft
+  - name: Create Fake Minecraft World & Zip
+    run: |
+      mkdir -p minecraft/world
+      echo "Auto VPS World Data" > minecraft/world/info.txt
+      mkdir -p .backup
+      zip -r .backup/world.zip minecraft
 
-      - name: Install Python and mega.py-revived
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install mega.py-revived
+  - name: Install Python & mega.py-revived
+    run: |
+      python3 -m pip install --upgrade pip
+      pip install mega.py-revived
 
-      - name: Upload Backup to MEGA
-        env:
-          MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
-          MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
-        run: |
-          python3 <<EOF
-from mega import Mega
-mega = Mega()
-m = mega.login(email="${{ secrets.MEGA_EMAIL }}", password="${{ secrets.MEGA_PASSWORD }}")
-m.upload(".backup/world.zip")
-EOF
+  - name: Upload to MEGA Cloud
+    env:
+      MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
+      MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
+    run: |
+      python3 -c "
 
-      - name: Keep VPS Alive
-        run: |
-          while true; do echo "🟢 VPS Running - $(date)"; sleep 60; done
+from mega import Mega mega = Mega() m = mega.login(email='${{ secrets.MEGA_EMAIL }}', password='${{ secrets.MEGA_PASSWORD }}') m.upload('.backup/world.zip') "
+
+- name: Keep VPS Session Alive
+    run: |
+      while true; do echo "🟢 VPS Running - $(date)"; sleep 60; done
+
