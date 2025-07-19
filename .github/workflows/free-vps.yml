@@ -1,9 +1,9 @@
-name: Auto Minecraft VPS with Backup & SSH
+name: Auto VPS with Minecraft Server and Backup
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 */6 * * *'  # every 6 hours
-  workflow_dispatch:
 
 jobs:
   start-vps:
@@ -11,47 +11,40 @@ jobs:
     timeout-minutes: 360
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Install required packages
-      run: sudo apt-get update && sudo apt-get install -y tmate openjdk-17-jre-headless zip wget
+      - name: Install required packages
+        run: sudo apt-get update && sudo apt-get install -y tmate zip curl
 
-    - name: Setup tmate session and save SSH
-      run: |
-        tmate -S /tmp/tmate.sock new-session -d
-        tmate -S /tmp/tmate.sock wait tmate-ready
-        tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
-        cat ssh.txt
+      - name: Start tmate SSH session and save SSH info
+        run: |
+          tmate -S /tmp/tmate.sock new-session -d
+          tmate -S /tmp/tmate.sock wait tmate-ready
+          tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
+          cat ssh.txt
 
-    - name: Setup Minecraft server
-      run: |
-        set -x
-        mkdir -p minecraft_server
-        cd minecraft_server || exit 1
-        wget -q https://papermc.io/api/v2/projects/paper/versions/1.20.1/builds/196/downloads/paper-1.20.1-196.jar -O paper.jar
-        echo "eula=true" > eula.txt
+      - name: Setup Minecraft server (Paper 1.20.1 build 196)
+        run: |
+          mkdir -p minecraft_server
+          cd minecraft_server || exit 1
+          echo "Downloading Paper server jar..."
+          curl -L -o paper.jar https://papermc.io/api/v2/projects/paper/versions/1.20.1/builds/196/downloads/paper-1.20.1-196.jar || (echo "Download failed!" && exit 1)
+          echo "eula=true" > eula.txt
 
-    - name: Start Minecraft server in background
-      run: |
-        cd minecraft_server
-        nohup java -Xms512M -Xmx1G -jar paper.jar nogui > server.log 2>&1 &
+      - name: Create backup zip of Minecraft server and ssh info
+        run: |
+          zip -r backup.zip minecraft_server ssh.txt
 
-    - name: Wait a bit for server to start
-      run: sleep 30
+      - name: Commit and push backup and ssh info to repo
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add backup.zip ssh.txt
+          git commit -m "Auto backup and SSH update $(date -u)" || echo "No changes to commit"
+          git push
 
-    - name: Backup Minecraft world
-      run: |
-        cd minecraft_server
-        zip -r ../backup.zip world
-
-    - name: Commit and push ssh.txt and backup.zip
-      run: |
-        git config --global user.name "github-actions"
-        git config --global user.email "actions@github.com"
-        git add ssh.txt backup.zip
-        git commit -m "Auto backup and ssh update $(date -u)" || echo "No changes to commit"
-        git push
-
-    - name: Keep VPS alive for 6 hours
-      run: sleep 21600
+      - name: Keep session alive for 6 hours
+        run: |
+          echo "Keeping session alive for 6 hours..."
+          sleep 21600
