@@ -16,10 +16,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup tmate (SSH) and Save to File
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y tmate
+          sudo apt install -y tmate zip
+          pip install mega.py
+
+      - name: Setup tmate and Save SSH
+        run: |
           tmate -S /tmp/tmate.sock new-session -d
           tmate -S /tmp/tmate.sock wait tmate-ready
           tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
@@ -35,13 +44,12 @@ jobs:
         run: |
           mkdir -p minecraft/world
           echo "This is a test world" > minecraft/world/readme.txt
+
+      - name: Zip Minecraft Folder
+        run: |
           mkdir -p .backup
           zip -r .backup/autovps.zip minecraft
-
-      - name: Install Python & mega.py
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install mega.py
+          chmod 644 .backup/autovps.zip
 
       - name: Upload Backup to MEGA
         env:
@@ -49,12 +57,12 @@ jobs:
           MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
         run: |
           python3 <<EOF
-          from mega import Mega
-          mega = Mega()
-          m = mega.login(email="${{ secrets.MEGA_EMAIL }}", password="${{ secrets.MEGA_PASSWORD }}")
-          m.upload("`.backup/autovps.zip`")
-          EOF
+from mega import Mega
+mega = Mega()
+m = mega.login(email="${{ secrets.MEGA_EMAIL }}", password="${{ secrets.MEGA_PASSWORD }}")
+m.upload(".backup/autovps.zip")
+EOF
 
-      - name: Keep Session Alive
+      - name: Keep VPS Session Alive
         run: |
           while true; do echo "🟢 VPS Running - $(date)"; sleep 60; done
