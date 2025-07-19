@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
+    - cron: '0 */6 * * *'
 
 jobs:
   auto-vps:
@@ -12,48 +12,52 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Start tmate SSH
+      - name: Clone repo and check if ssh.txt exists
+        id: check_ssh
+        run: |
+          git config --global user.name "bot"
+          git config --global user.email "bot@example.com"
+          git clone https://github.com/${{ github.repository }}.git repo
+          if [ -f repo/ssh.txt ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Start tmate SSH (only if ssh.txt does not exist)
+        if: steps.check_ssh.outputs.exists == 'false'
         id: tmate
         uses: mxschmitt/action-tmate@v3
 
-      - name: Extract SSH info and save to repo
-        if: always()
+      - name: Save SSH to ssh.txt (only once)
+        if: steps.check_ssh.outputs.exists == 'false'
         run: |
           TMATE=$(curl -s https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs | grep -o 'ssh [^"]*tmate.io' | head -n 1)
-          
-          git config --global user.name "reconnect-bot"
-          git config --global user.email "bot@example.com"
-          git clone https://github.com/${{ github.repository }}.git repo
           cd repo
           echo "$TMATE" > ssh.txt
           git add ssh.txt
-          git commit -m "Updated SSH: $(date -u)" || true
-          git push origin main --force
+          git commit -m "Saved initial tmate SSH"
+          git push origin main
 
-      - name: Install MEGA tools
+      - name: Install megatools
         run: |
           sudo apt update
           sudo apt install -y megatools
 
-      - name: Mega Login
+      - name: Login to MEGA
         run: |
           echo "[Login]" > ~/.megarc
           echo "Username = ${{ secrets.MEGA_EMAIL }}" >> ~/.megarc
           echo "Password = ${{ secrets.MEGA_PASSWORD }}" >> ~/.megarc
           chmod 600 ~/.megarc
 
-      - name: Backup VPS files to MEGA
+      - name: Backup to MEGA every 6h
         if: always()
         run: |
           mkdir -p ~/vps-server
           cd ~
           zip -r vps-backup.zip vps-server
           megaput vps-backup.zip --path /vps-backups/
-
-      - name: Upload MEGA log
-        if: always()
-        run: |
-          echo "Backup done: $(date -u)" >> backup.log
