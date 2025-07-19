@@ -1,54 +1,61 @@
 name: Auto VPS All-in-One
 
-on: workflow_dispatch: push: branches: [main] schedule: - cron: '0 */6 * * *'
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
 
-jobs: auto-vps: runs-on: ubuntu-latest timeout-minutes: 360
+jobs:
+  auto-vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
 
-steps:
-  - name: ⬇️ Checkout
-    uses: actions/checkout@v3
+    steps:
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v3
 
-  - name: 📁 Create dirs
-    run: mkdir -p links .backup
+      - name: 📁 Create dirs
+        run: mkdir -p links .backup
 
-  - name: 🔐 Start tmate session
-    run: |
-      echo "⚙️ Launching tmate..."
-      sudo apt update && sudo apt install -y tmate
-      tmate -S /tmp/tmate.sock new-session -d
-      tmate -S /tmp/tmate.sock wait tmate-ready
-      SSH=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
-      echo "$SSH" > "links/autovps.txt"
-      echo "✅ SSH Ready: $SSH"
+      - name: 🔐 Start tmate session
+        run: |
+          echo "⚙️ Launching tmate..."
+          sudo apt update && sudo apt install -y tmate
+          tmate -S /tmp/tmate.sock new-session -d
+          tmate -S /tmp/tmate.sock wait tmate-ready
+          SSH=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+          echo "$SSH" > "links/autovps.txt"
+          echo "✅ SSH Ready: $SSH"
 
-  - name: 📦 Save backup locally
-    run: |
-      zip -r ".backup/autovps.zip" . -x ".git/*" ".github/*" ".backup/*" || true
+      - name: 📦 Save backup locally
+        run: |
+          zip -r ".backup/autovps.zip" . -x ".git/*" ".github/*" ".backup/*" || true
 
-  - name: 📤 Push SSH + backup to repo
-    uses: stefanzweifel/git-auto-commit-action@v5
-    with:
-      commit_message: "🔁 Updated SSH and backup (auto)"
-      file_pattern: 'links/*.txt .backup/*.zip'
+      - name: 📤 Push SSH + backup to repo
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🔁 Updated SSH and backup (auto)"
+          file_pattern: 'links/*.txt .backup/*.zip'
 
-  - name: 📦 Install MEGA Tools
-    run: |
-      sudo apt update
-      sudo apt install -y megatools
+      - name: 📦 Install MEGA Tools
+        run: |
+          sudo apt update
+          sudo apt install -y megatools
 
-  - name: 🔐 MEGA Login
-    run: |
-      echo "[Login]" > ~/.megarc
-      echo "Username = ${{ secrets.MEGA_EMAIL }}" >> ~/.megarc
-      echo "Password = ${{ secrets.MEGA_PASSWORD }}" >> ~/.megarc
-      chmod 600 ~/.megarc
+      - name: 🔐 MEGA Login
+        run: |
+          echo "[Login]" > ~/.megarc
+          echo "Username = ${{ secrets.MEGA_EMAIL }}" >> ~/.megarc
+          echo "Password = ${{ secrets.MEGA_PASSWORD }}" >> ~/.megarc
+          chmod 600 ~/.megarc
 
-  - name: ☁️ Upload backup to MEGA
-    run: |
-      megaput .backup/autovps.zip --path /vps-backups/
+      - name: ☁️ Upload backup to MEGA
+        run: |
+          megaput .backup/autovps.zip --path /vps-backups/
 
-  - name: ⏳ Keep session alive
-    run: |
-      echo "⏳ Keeping session alive for 6 hours..."
-      sleep 21600
-
+      - name: ⏳ Keep session alive
+        run: |
+          echo "⏳ Keeping session alive for 6 hours..."
+          sleep 21600
