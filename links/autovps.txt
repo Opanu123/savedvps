@@ -1,1 +1,0 @@
-ssh ZBPLan2KFtnqbjethmsgYvcqX@nyc1.tmate.io
