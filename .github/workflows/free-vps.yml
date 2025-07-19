@@ -3,7 +3,7 @@ name: Auto VPS Creator with MEGA Backup
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */6 * * *"  # Every 6 hours
   push:
     branches:
       - main
@@ -13,53 +13,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Setup tmate (SSH)
+      - name: Install tmate and zip
         run: |
           sudo apt update
-          sudo apt install -y tmate
+          sudo apt install -y tmate zip
+
+      - name: Start tmate and Save SSH to ssh.txt
+        run: |
           tmate -S /tmp/tmate.sock new-session -d
           tmate -S /tmp/tmate.sock wait tmate-ready
           tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
           cat ssh.txt
 
-      - name: Upload SSH to Artifact
+      - name: Upload SSH File as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ssh
           path: ssh.txt
 
-      - name: Create Minecraft World Folder
+      - name: Create Dummy Minecraft Folder and Backup
         run: |
           mkdir -p minecraft/world
-          echo "This is a test world" > minecraft/world/readme.txt
+          echo "Test world file" > minecraft/world/readme.txt
           mkdir -p .backup
           zip -r .backup/autovps.zip minecraft
-          chmod 644 .backup/autovps.zip
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install mega.py
+      - name: Install Python and mega.py-revived
         run: |
-          pip install mega.py
+          pip install mega.py-revived
 
-      - name: Upload to MEGA
+      - name: Upload Backup to MEGA
         env:
           MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
           MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
         run: |
-          python3 -c "
+          python3 <<EOF
 from mega import Mega
 mega = Mega()
-m = mega.login(email='${{ secrets.MEGA_EMAIL }}', password='${{ secrets.MEGA_PASSWORD }}')
-m.upload('.backup/autovps.zip')
-"
+m = mega.login(email="${{ secrets.MEGA_EMAIL }}", password="${{ secrets.MEGA_PASSWORD }}")
+m.upload(".backup/autovps.zip")
+EOF
 
-      - name: Keep VPS Alive
+      - name: Keep Session Alive
         run: |
-          while true; do echo '🟢 VPS Running - $(date)'; sleep 60; done
+          while true; do echo "🟢 VPS Running - $(date)"; sleep 60; done
