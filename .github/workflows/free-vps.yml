@@ -1,0 +1,59 @@
+name: Free VPS Auto-Renew & Reconnect
+
+on:
+  workflow_dispatch:
+  push:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+jobs:
+  auto-vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start tmate SSH
+        id: tmate
+        uses: mxschmitt/action-tmate@v3
+
+      - name: Extract SSH info and save to repo
+        if: always()
+        run: |
+          TMATE=$(curl -s https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs | grep -o 'ssh [^"]*tmate.io' | head -n 1)
+          
+          git config --global user.name "reconnect-bot"
+          git config --global user.email "bot@example.com"
+          git clone https://github.com/${{ github.repository }}.git repo
+          cd repo
+          echo "$TMATE" > ssh.txt
+          git add ssh.txt
+          git commit -m "Updated SSH: $(date -u)" || true
+          git push origin main --force
+
+      - name: Install MEGA tools
+        run: |
+          sudo apt update
+          sudo apt install -y megatools
+
+      - name: Mega Login
+        run: |
+          echo "[Login]" > ~/.megarc
+          echo "Username = ${{ secrets.MEGA_EMAIL }}" >> ~/.megarc
+          echo "Password = ${{ secrets.MEGA_PASSWORD }}" >> ~/.megarc
+          chmod 600 ~/.megarc
+
+      - name: Backup VPS files to MEGA
+        if: always()
+        run: |
+          mkdir -p ~/vps-server
+          cd ~
+          zip -r vps-backup.zip vps-server
+          megaput vps-backup.zip --path /vps-backups/
+
+      - name: Upload MEGA log
+        if: always()
+        run: |
+          echo "Backup done: $(date -u)" >> backup.log
