@@ -1,63 +1,54 @@
-name: Free VPS Auto-Renew & Reconnect
+name: Auto VPS All-in-One
 
-on:
-  workflow_dispatch:
-  push:
-  schedule:
-    - cron: '0 */6 * * *'
+on: workflow_dispatch: push: branches: [main] schedule: - cron: '0 */6 * * *'
 
-jobs:
-  auto-vps:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
+jobs: auto-vps: runs-on: ubuntu-latest timeout-minutes: 360
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+steps:
+  - name: ⬇️ Checkout
+    uses: actions/checkout@v3
 
-      - name: Clone repo and check if ssh.txt exists
-        id: check_ssh
-        run: |
-          git config --global user.name "bot"
-          git config --global user.email "bot@example.com"
-          git clone https://github.com/${{ github.repository }}.git repo
-          if [ -f repo/ssh.txt ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+  - name: 📁 Create dirs
+    run: mkdir -p links .backup
 
-      - name: Start tmate SSH (only if ssh.txt does not exist)
-        if: steps.check_ssh.outputs.exists == 'false'
-        id: tmate
-        uses: mxschmitt/action-tmate@v3
+  - name: 🔐 Start tmate session
+    run: |
+      echo "⚙️ Launching tmate..."
+      sudo apt update && sudo apt install -y tmate
+      tmate -S /tmp/tmate.sock new-session -d
+      tmate -S /tmp/tmate.sock wait tmate-ready
+      SSH=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+      echo "$SSH" > "links/autovps.txt"
+      echo "✅ SSH Ready: $SSH"
 
-      - name: Save SSH to ssh.txt (only once)
-        if: steps.check_ssh.outputs.exists == 'false'
-        run: |
-          TMATE=$(curl -s https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs | grep -o 'ssh [^"]*tmate.io' | head -n 1)
-          cd repo
-          echo "$TMATE" > ssh.txt
-          git add ssh.txt
-          git commit -m "Saved initial tmate SSH"
-          git push origin main
+  - name: 📦 Save backup locally
+    run: |
+      zip -r ".backup/autovps.zip" . -x ".git/*" ".github/*" ".backup/*" || true
 
-      - name: Install megatools
-        run: |
-          sudo apt update
-          sudo apt install -y megatools
+  - name: 📤 Push SSH + backup to repo
+    uses: stefanzweifel/git-auto-commit-action@v5
+    with:
+      commit_message: "🔁 Updated SSH and backup (auto)"
+      file_pattern: 'links/*.txt .backup/*.zip'
 
-      - name: Login to MEGA
-        run: |
-          echo "[Login]" > ~/.megarc
-          echo "Username = ${{ secrets.MEGA_EMAIL }}" >> ~/.megarc
-          echo "Password = ${{ secrets.MEGA_PASSWORD }}" >> ~/.megarc
-          chmod 600 ~/.megarc
+  - name: 📦 Install MEGA Tools
+    run: |
+      sudo apt update
+      sudo apt install -y megatools
 
-      - name: Backup to MEGA every 6h
-        if: always()
-        run: |
-          mkdir -p ~/vps-server
-          cd ~
-          zip -r vps-backup.zip vps-server
-          megaput vps-backup.zip --path /vps-backups/
+  - name: 🔐 MEGA Login
+    run: |
+      echo "[Login]" > ~/.megarc
+      echo "Username = ${{ secrets.MEGA_EMAIL }}" >> ~/.megarc
+      echo "Password = ${{ secrets.MEGA_PASSWORD }}" >> ~/.megarc
+      chmod 600 ~/.megarc
+
+  - name: ☁️ Upload backup to MEGA
+    run: |
+      megaput .backup/autovps.zip --path /vps-backups/
+
+  - name: ⏳ Keep session alive
+    run: |
+      echo "⏳ Keeping session alive for 6 hours..."
+      sleep 21600
+
