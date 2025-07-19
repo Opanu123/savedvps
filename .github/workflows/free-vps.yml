@@ -1,48 +1,49 @@
-name: Auto VPS Creator with MEGA Backup
+name: Auto VPS with MEGA + SSH (Fixed)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"  # Every 6 hours
+    - cron: "0 */6 * * *"
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  create-vps:
+  autovps:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install tmate and zip
+      - name: Setup VPS Tools
         run: |
           sudo apt update
           sudo apt install -y tmate zip
 
-      - name: Start tmate and Save SSH to ssh.txt
+      - name: Start VPS (tmate) and Save SSH
         run: |
           tmate -S /tmp/tmate.sock new-session -d
+          sleep 5
           tmate -S /tmp/tmate.sock wait tmate-ready
           tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
           cat ssh.txt
 
-      - name: Upload SSH File as Artifact
+      - name: Upload ssh.txt
         uses: actions/upload-artifact@v4
         with:
-          name: ssh
+          name: SSH
           path: ssh.txt
 
-      - name: Create Dummy Minecraft Folder and Backup
+      - name: Create Minecraft World and Zip
         run: |
           mkdir -p minecraft/world
-          echo "Test world file" > minecraft/world/readme.txt
+          echo "Auto VPS World Data" > minecraft/world/info.txt
           mkdir -p .backup
-          zip -r .backup/autovps.zip minecraft
+          zip -r .backup/world.zip minecraft
 
       - name: Install Python and mega.py-revived
         run: |
+          python3 -m pip install --upgrade pip
           pip install mega.py-revived
 
       - name: Upload Backup to MEGA
@@ -54,9 +55,9 @@ jobs:
 from mega import Mega
 mega = Mega()
 m = mega.login(email="${{ secrets.MEGA_EMAIL }}", password="${{ secrets.MEGA_PASSWORD }}")
-m.upload(".backup/autovps.zip")
+m.upload(".backup/world.zip")
 EOF
 
-      - name: Keep Session Alive
+      - name: Keep VPS Alive
         run: |
           while true; do echo "🟢 VPS Running - $(date)"; sleep 60; done
