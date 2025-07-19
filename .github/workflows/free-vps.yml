@@ -1,4 +1,4 @@
-name: Auto VPS Creator with Backup and Live SSH
+name: Auto VPS Creator with MEGA Backup
 
 on:
   workflow_dispatch:
@@ -13,58 +13,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup tmate SSH
+      - name: Setup tmate (SSH) and Save to File
         run: |
           sudo apt update
           sudo apt install -y tmate
           tmate -S /tmp/tmate.sock new-session -d
           tmate -S /tmp/tmate.sock wait tmate-ready
           tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' > ssh.txt
-          echo "SSH SESSION:"
           cat ssh.txt
 
-      - name: Save SSH to Artifact
+      - name: Upload SSH File
         uses: actions/upload-artifact@v4
         with:
           name: ssh
           path: ssh.txt
 
-      - name: Install MEGAcmd
-        run: |
-          sudo apt update
-          sudo apt install -y wget gnupg
-          wget -qO - https://mega.nz/keys/MEGA_signing.key | sudo apt-key add -
-          echo "deb https://mega.nz/linux/MEGAsync/xUbuntu_20.04/ ./" | sudo tee /etc/apt/sources.list.d/mega.list
-          sudo apt update
-          sudo apt install -y megacmd
-
-      - name: Login to MEGA
-        env:
-          MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
-          MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
-        run: mega-login "$MEGA_EMAIL" "$MEGA_PASSWORD"
-
-      - name: Ensure MEGA folder exists
-        run: |
-          if ! megals | grep -q "vps-backups"; then
-            megamkdir vps-backups
-          fi
-
-      - name: Create Minecraft backup
+      - name: Create Fake Minecraft World
         run: |
           mkdir -p minecraft/world
-          echo "Fake World" > minecraft/world/readme.txt
+          echo "This is a test world" > minecraft/world/readme.txt
           mkdir -p .backup
           zip -r .backup/autovps.zip minecraft
 
-      - name: Upload to MEGA
+      - name: Install Python & mega.py
         run: |
-          megaput .backup/autovps.zip --path vps-backups
+          python3 -m pip install --upgrade pip
+          pip install mega.py
 
-      - name: Keep VPS Session Alive
+      - name: Upload Backup to MEGA
+        env:
+          MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
+          MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
         run: |
-          echo "🟢 VPS Session Alive"
-          while true; do sleep 60; echo "✅ $(date)"; done
+          python3 <<EOF
+          from mega import Mega
+          mega = Mega()
+          m = mega.login(email="${{ secrets.MEGA_EMAIL }}", password="${{ secrets.MEGA_PASSWORD }}")
+          m.upload("`.backup/autovps.zip`")
+          EOF
+
+      - name: Keep Session Alive
+        run: |
+          while true; do echo "🟢 VPS Running - $(date)"; sleep 60; done
