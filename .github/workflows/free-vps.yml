@@ -51,8 +51,12 @@ jobs:
           echo "Password = ${{ secrets.MEGA_PASSWORD }}" >> ~/.megarc
           chmod 600 ~/.megarc
 
-      - name: ☁️ Upload backup to MEGA
+      - name: ☁️ Check MEGA login and upload backup
         run: |
+          if megals --reload 2>&1 | grep -q 'failed'; then
+            echo "⚠️ MEGA login failed, skipping upload"
+            exit 0
+          fi
           megaput .backup/autovps.zip --path /vps-backups/
 
       - name: ⏳ Keep session alive
