@@ -3,7 +3,7 @@ name: Auto VPS Creator with Backup and Live SSH
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"  # Every 6 hours
+    - cron: "0 */6 * * *"
   push:
     branches:
       - main
@@ -32,10 +32,14 @@ jobs:
           name: ssh
           path: ssh.txt
 
-      - name: Install Python & MEGA Tools
+      - name: Install MEGAcmd
         run: |
-          sudo apt install -y python3-pip zip unzip
-          pip install mega.py
+          sudo apt update
+          sudo apt install -y wget gnupg
+          wget -qO - https://mega.nz/keys/MEGA_signing.key | sudo apt-key add -
+          echo "deb https://mega.nz/linux/MEGAsync/xUbuntu_20.04/ ./" | sudo tee /etc/apt/sources.list.d/mega.list
+          sudo apt update
+          sudo apt install -y megacmd
 
       - name: Login to MEGA
         env:
@@ -43,24 +47,24 @@ jobs:
           MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
         run: mega-login "$MEGA_EMAIL" "$MEGA_PASSWORD"
 
-      - name: Ensure MEGA backup folder exists
+      - name: Ensure MEGA folder exists
         run: |
           if ! megals | grep -q "vps-backups"; then
             megamkdir vps-backups
           fi
 
-      - name: Create a Minecraft Backup (replace this with your real folder)
+      - name: Create Minecraft backup
         run: |
           mkdir -p minecraft/world
           echo "Fake World" > minecraft/world/readme.txt
           mkdir -p .backup
           zip -r .backup/autovps.zip minecraft
 
-      - name: Upload Backup to MEGA
+      - name: Upload to MEGA
         run: |
           megaput .backup/autovps.zip --path vps-backups
 
-      - name: Keep Session Alive
+      - name: Keep VPS Session Alive
         run: |
-          echo "✅ Session running... press Ctrl+C to stop"
-          while true; do sleep 60; echo "🔁 Still alive at $(date)"; done
+          echo "🟢 VPS Session Alive"
+          while true; do sleep 60; echo "✅ $(date)"; done
