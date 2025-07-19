@@ -32,37 +32,35 @@ jobs:
           name: ssh
           path: ssh.txt
 
-      - name: Install Python and MEGA Tools
+      - name: Install Python & MEGA Tools
         run: |
-          sudo apt install -y python3-pip zip unzip lsof
+          sudo apt install -y python3-pip zip unzip
           pip install mega.py
 
       - name: Login to MEGA
-        run: mega-login "${{ secrets.MEGA_EMAIL }}" "${{ secrets.MEGA_PASSWORD }}"
+        env:
+          MEGA_EMAIL: ${{ secrets.MEGA_EMAIL }}
+          MEGA_PASSWORD: ${{ secrets.MEGA_PASSWORD }}
+        run: mega-login "$MEGA_EMAIL" "$MEGA_PASSWORD"
 
-      - name: Create MEGA folder if not exists
+      - name: Ensure MEGA backup folder exists
         run: |
-          python3 -c "
-import subprocess
-try:
-  folders = subprocess.check_output(['megals']).decode()
-  if 'vps-backups' not in folders:
-    subprocess.run(['megamkdir', 'vps-backups'])
-except Exception as e:
-  print('Error creating folder:', e)
-          "
+          if ! megals | grep -q "vps-backups"; then
+            megamkdir vps-backups
+          fi
 
-      - name: Create Backup (replace with real folder)
+      - name: Create a Minecraft Backup (replace this with your real folder)
         run: |
           mkdir -p minecraft/world
-          echo 'Fake World' > minecraft/world/readme.txt
+          echo "Fake World" > minecraft/world/readme.txt
           mkdir -p .backup
           zip -r .backup/autovps.zip minecraft
 
       - name: Upload Backup to MEGA
-        run: megaput .backup/autovps.zip --path vps-backups
-
-      - name: Keep VPS Session Alive
         run: |
-          echo "🟢 Session running... Press Ctrl+C to stop"
-          while true; do sleep 60; echo "✅ Alive at $(date)"; done
+          megaput .backup/autovps.zip --path vps-backups
+
+      - name: Keep Session Alive
+        run: |
+          echo "✅ Session running... press Ctrl+C to stop"
+          while true; do sleep 60; echo "🔁 Still alive at $(date)"; done
